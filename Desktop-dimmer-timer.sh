@@ -3,32 +3,22 @@
 ## macOS Dark Mode at sunset
 ## Solar times pulled from Yahoo Weather API
 ## Author: katernet ## Version 1.7.1
+## Modified: Eric Crosson
 
 ## Global variables ##
-darkdir=~/Library/Application\ Support/darkmode # darkmode directory
-plistR=~/Library/LaunchAgents/io.github.katernet.darkmode.sunrise.plist # Launch Agent plist locations
-plistS=~/Library/LaunchAgents/io.github.katernet.darkmode.sunset.plist
+darkdir=~/Library/Application\ Support/desktop-dimmer-timer # desktop-dimmer-timer directory
+plistR=~/Library/LaunchAgents/io.github.ericcrosson.desktop-dimmer-timer.sunrise.plist # Launch Agent plist locations
+plistS=~/Library/LaunchAgents/io.github.ericcrosson.desktop-dimmer-timer.sunset.plist
 
 ## Functions ##
 
 # Set dark mode - Sunrise = off Sunset = on
-darkMode() {
+dim() {
 	case $1 in
-		off) 
+		off)
 			# Disable dark mode
-			osascript -e '
-			tell application id "com.apple.systemevents"
-				tell appearance preferences
-					if dark mode is true then
-						set dark mode to false
-					end if
-				end tell
-			end tell
-			'
-			if ls /Applications/Alfred*.app >/dev/null 2>&1; then # If Alfred installed
-				osascript -e 'tell application "Alfred 3" to set theme "Alfred"' 2> /dev/null # Set Alfred default theme
-			fi
-			if [ -f "$plistR" ] || [ -f "$plistS" ]; then # Prevent uninstaller from continuing
+                    killall "Desktop Dimmer"
+                        if [ -f "$plistR" ] || [ -f "$plistS" ]; then # Prevent uninstaller from continuing
 				# Run solar query on first day of week
 				if [ "$(date +%u)" = 1 ]; then
 					solar
@@ -45,19 +35,8 @@ darkMode() {
 			;;
 		on)
 			# Enable dark mode
-			osascript -e '
-			tell application id "com.apple.systemevents"
-				tell appearance preferences
-					if dark mode is false then
-						set dark mode to true
-					end if
-				end tell
-			end tell
-			'
-			if ls /Applications/Alfred*.app >/dev/null 2>&1; then
-				osascript -e 'tell application "Alfred 3" to set theme "Alfred Dark"' 2> /dev/null # Set Alfred dark theme
-			fi
-			# Get sunrise launch agent start interval
+                    open -a "Desktop Dimmer"
+                        # Get sunrise launch agent start interval
 			plistRH=$(/usr/libexec/PlistBuddy -c "Print :StartCalendarInterval:Hour" "$plistR" 2> /dev/null)
 			plistRM=$(/usr/libexec/PlistBuddy -c "Print :StartCalendarInterval:Minute" "$plistR" 2> /dev/null)
 			if [ -z "$plistRH" ] && [ -z "$plistRM" ]; then
@@ -89,20 +68,20 @@ solar() {
 	UPDATE solar SET time='$setT24' WHERE id=2;
 EOF
 	# Log
-	echo "$(date +"%d/%m/%y %T")" darkmode: Solar query stored - Sunrise: "$(sqlite3 "$darkdir"/solar.db 'SELECT time FROM solar WHERE id=1;' "")" Sunset: "$(sqlite3 "$darkdir"/solar.db 'SELECT time FROM solar WHERE id=2;' "")" >> ~/Library/Logs/io.github.katernet.darkmode.log
+	echo "$(date +"%d/%m/%y %T")" desktop-dimmer-timer: Solar query stored - Sunrise: "$(sqlite3 "$darkdir"/solar.db 'SELECT time FROM solar WHERE id=1;' "")" Sunset: "$(sqlite3 "$darkdir"/solar.db 'SELECT time FROM solar WHERE id=2;' "")" >> ~/Library/Logs/io.github.ericcrosson.desktop-dimmer-timer.log
 }
 
 # Deploy launch agents
 launch() {
 	shdir="$(cd "$(dirname "$0")" && pwd)" # Get script path
-	cp -p "$shdir"/darkmode.sh "$darkdir"/ # Copy script to darkmode directory
+	cp -p "$shdir"/desktop-dimmer-timer.sh "$darkdir"/ # Copy script to desktop-dimmer-timer directory
 	mkdir ~/Library/LaunchAgents 2> /dev/null; cd "$_" || return # Create LaunchAgents directory (if required) and cd there
 	# Setup launch agent plists
-	/usr/libexec/PlistBuddy -c "Add :Label string io.github.katernet.darkmode.sunrise" "$plistR" 1> /dev/null
-	/usr/libexec/PlistBuddy -c "Add :Program string ${darkdir}/darkmode.sh" "$plistR"
+	/usr/libexec/PlistBuddy -c "Add :Label string io.github.ericcrosson.desktop-dimmer-timer.sunrise" "$plistR" 1> /dev/null
+	/usr/libexec/PlistBuddy -c "Add :Program string ${darkdir}/desktop-dimmer-timer.sh" "$plistR"
 	/usr/libexec/PlistBuddy -c "Add :RunAtLoad bool true" "$plistR"
-	/usr/libexec/PlistBuddy -c "Add :Label string io.github.katernet.darkmode.sunset" "$plistS" 1> /dev/null
-	/usr/libexec/PlistBuddy -c "Add :Program string ${darkdir}/darkmode.sh" "$plistS"
+	/usr/libexec/PlistBuddy -c "Add :Label string io.github.ericcrosson.desktop-dimmer-timer.sunset" "$plistS" 1> /dev/null
+	/usr/libexec/PlistBuddy -c "Add :Program string ${darkdir}/desktop-dimmer-timer.sh" "$plistS"
 	# Load launch agents
 	launchctl load "$plistR"
 	launchctl load "$plistS"
@@ -137,7 +116,7 @@ unstl() {
 	# Unload launch agents
 	launchctl unload "$plistR"
 	launchctl unload "$plistS"
-	# Check if darkmode files exist and move to Trash
+	# Check if desktop-dimmer-timer files exist and move to Trash
 	if [ -d "$darkdir" ]; then
 		mv "$darkdir" ~/.Trash
 	fi
@@ -145,16 +124,16 @@ unstl() {
 		mv "$plistR" ~/.Trash
 		mv "$plistS" ~/.Trash
 	fi
-	if [ -f ~/Library/Logs/io.github.katernet.darkmode.log ]; then
-		mv ~/Library/Logs/io.github.katernet.darkmode.log ~/.Trash
+	if [ -f ~/Library/Logs/io.github.ericcrosson.desktop-dimmer-timer.log ]; then
+		mv ~/Library/Logs/io.github.ericcrosson.desktop-dimmer-timer.log ~/.Trash
 	fi
-	darkMode off
+	dim off
 }
 
 # Error logging
 log() {
 	while IFS='' read -r line; do
-		echo "$(date +"%D %T") $line" >> ~/Library/Logs/io.github.katernet.darkmode.log
+		echo "$(date +"%D %T") $line" >> ~/Library/Logs/io.github.ericcrosson.desktop-dimmer-timer.log
 	done
 }
 
@@ -168,17 +147,17 @@ if [ "$1" == '/u' ]; then # Shell parameter
 	unstl
 	error=$? # Get exit code from unstl()
 	if [ $error -ne 0 ]; then # If exit code not equal to 0
-		echo "Uninstall failed! For manual uninstall steps visit https://github.com/katernet/darkmode/issues/1"
+		echo "Uninstall failed! For manual uninstall steps visit https://github.com/ericcrosson/desktop-dimmer-timer/issues/1"
 		read -rp "Open link in your browser? [y/n] " prompt
 		if [[ $prompt =~ [yY](es)* ]]; then
-			open https://github.com/katernet/darkmode/issues/1
+			open https://github.com/ericcrosson/desktop-dimmer-timer/issues/1
 		fi
 		exit $error
 	fi
 	exit 0
 fi
 
-# Create darkmode directory if doesn't exist
+# Create desktop-dimmer-timer directory if doesn't exist
 if [ ! -d "$darkdir" ]; then
 	mkdir "$darkdir"
 	solar
@@ -205,18 +184,18 @@ timeM=$(date +"%M" | sed 's/^0//')
 if [[ "$timeH" -ge "$riseH" && "$timeH" -lt "$setH" ]]; then
 	# Sunrise
 	if [[ "$timeH" -ge $((riseH+1)) || "$timeM" -ge "$riseM" ]]; then
-		darkMode off
-	# Sunset	
-	elif [[ "$timeH" -ge "$setH" && "$timeM" -ge "$setM" ]] || [[ "$timeH" -le "$riseH" && "$timeM" -lt "$riseM" ]]; then 
-		darkMode on
+		dim off
+	# Sunset
+	elif [[ "$timeH" -ge "$setH" && "$timeM" -ge "$setM" ]] || [[ "$timeH" -le "$riseH" && "$timeM" -lt "$riseM" ]]; then
+		dim on
 	fi
-# Sunset		
+# Sunset
 elif [[ "$timeH" -ge 0 && "$timeH" -lt "$riseH" ]]; then
-	darkMode on
-# Sunrise	
+	dim on
+# Sunrise
 elif [[ "$timeH" -eq "$setH" && "$timeM" -lt "$setM" ]]; then
-	darkMode off
-# Sunset	
+	dim off
+# Sunset
 else
-	darkMode on
+	dim on
 fi
